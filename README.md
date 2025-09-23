@@ -21,30 +21,7 @@ CLEAR-CARD provides that end-to-end workflow.
 - **Reproducibility**: every job stores the query spec and classification settings used.
 
 ## System architecture
-
-```mermaid
-graph TD
-  subgraph Client
-    UI[React (Vite, TS, Tailwind, Motion)]
-  end
-
-  subgraph API
-    S[Spring Boot API]
-  end
-
-  subgraph Workers
-    J[Python gRPC Job Server]
-    H[Python Message Handler]
-  end
-
-  MQ[RabbitMQ]
-  DB[(SQL Server 2022)]
-
-  UI -->|REST/JSON| S
-  S -->|JDBC| DB
-  S -->|gRPC :50051| J
-  S -->|AMQP| MQ
-  J -->|AMQP| MQ
-  J -->|pyodbc| DB
-  H -->|AMQP consume| MQ
-  H -->|pyodbc| DB
+- React (Vite + Typescript) client,
+- Java Spring Server,
+- Python worker (communicating via message-handler),
+- Python message handler (using gRPC)
