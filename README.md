@@ -1,5 +1,5 @@
 # CLEAR-CARD
-**Citation Landscape Explorer for Analysis & Research**
+**Citation Landscape Explorer for Analysis & Research In Cardiology Domains**
 
 > Query, schedule, and visualize large-scale bibliometrics with a reproducible, job-driven pipeline
 
