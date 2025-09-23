@@ -3,9 +3,6 @@
 
 > Query, schedule, and visualize large-scale bibliometrics with a reproducible, job-driven pipeline
 
-
----
-
 ## Why this project exists
 Modern journal-level indicators often reflect heterogeneous article types. To understand *article-level* influence—and how shifts in content mix affect journal metrics—researchers need a transparent, scalable way to:
 - ingest and normalize article metadata and citation links,
@@ -15,8 +12,6 @@ Modern journal-level indicators often reflect heterogeneous article types. To un
 
 CLEAR-CARD provides that end-to-end workflow.
 
----
-
 ## What you can do with CLEAR-CARD
 - **Interactive job builder**: assemble complex SQL-backed analyses without hand-writing SQL.
 - **Asynchronous jobs**: submit analyses that run in the background via a Python worker.
@@ -24,8 +19,6 @@ CLEAR-CARD provides that end-to-end workflow.
 - **Pin to dashboard**: save selected results to a personal dashboard.
 - **Auth**: simple email/password login for per-user job lists and pins.
 - **Reproducibility**: every job stores the query spec and classification settings used.
-
----
 
 ## System architecture
 
