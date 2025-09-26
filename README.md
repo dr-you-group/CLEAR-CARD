@@ -24,4 +24,6 @@ CLEAR-CARD provides that end-to-end workflow.
 - React (Vite + Typescript) client,
 - Java Spring Server,
 - Python worker (communicating via message-handler),
-- Python message handler (using gRPC)
+- Python message handler (using gRPC),
+- Redis work queue,
+- Nginx & Docker for deployment
