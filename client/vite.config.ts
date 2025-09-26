@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://35.188.205.219:8080",
+        target: "http://localhost:8080",
         changeOrigin: true,
         secure: false,
         // IMPORTANT: strip the /api prefix so Spring sees /jobs, not /api/jobs

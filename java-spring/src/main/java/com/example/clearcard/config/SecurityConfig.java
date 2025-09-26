@@ -43,15 +43,11 @@ public class SecurityConfig {
                 .csrf(c -> c.disable()) // JWT-based; CSRF disabled
                 .authorizeHttpRequests(reg -> reg
                         .requestMatchers(
-                                "/auth/**",
-                                "/swagger-ui/**", "/v3/api-docs/**",
-                                // Allow SPA endpoints with and without /api prefix (dev proxy)
-                                "/jobs", "/jobs/**",
-                                "/api/jobs", "/api/jobs/**",
-                                // Optional helper endpoints
-                                "/sql", "/api/sql",
-                                "/csv", "/api/csv",
-                                "/articles", "/api/articles", "/articles/**", "/api/articles/**"
+                            "/auth/**", "/api/auth/**",
+                            "/swagger-ui/**", "/v3/api-docs/**",
+                            "/jobs", "/jobs/**", "/api/jobs", "/api/jobs/**",
+                            "/sql", "/api/sql", "/csv", "/api/csv",
+                            "/articles", "/api/articles", "/articles/**", "/api/articles/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -64,7 +60,11 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         var cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(List.of("http://localhost:5173"));
+        cfg.setAllowedOriginPatterns(List.of(
+            "http://localhost", "http://localhost:*",      // nginx (:80) and any port
+            "http://127.0.0.1", "http://127.0.0.1:*"       // local variants
+            // add your real domain(s) here in prod, e.g. "https://app.example.com"
+        ));
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
         cfg.setAllowedHeaders(List.of(
                 "Authorization","Content-Type","Accept","X-Requested-With",

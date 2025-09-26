@@ -1,36 +1,34 @@
-version: "3.9"
-
 services:
   redis:
     image: redis:7-alpine
-    container_name: cc-redis
-    ports:
-      - "6379:6379"
+    networks: [appnet]
+    ports: ["6379:6379"]
 
   message-handler:
     build:
       context: ./message-handler
-    container_name: cc-message-handler
+    container_name: message-handler
     environment:
-      # Redis
       REDIS_URL: redis://redis:6379/0
-      # MSSQL metadata DB (adjust user/pwd/db)
       MSSQL_HOST: 35.184.80.250
       MSSQL_DB: meta
       MSSQL_USER: sqlserver
       MSSQL_PWD: Dream2002!
       MSSQL_DRIVER: ODBC Driver 18 for SQL Server
-      APP_PORT: 50052
       MH_PORT: "50051"
-    depends_on:
-      - redis
-    ports:
-      - "50051:50051"   # optional: expose for debugging
+      PYTHONUNBUFFERED: "1"
+    networks: [appnet]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket as s; x=s.socket(); x.settimeout(1); x.connect(('127.0.0.1',50051)); x.close(); print('ok')"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
 
   worker:
     build:
       context: ./worker
-    container_name: cc-worker
+    container_name: worker
     environment:
       REDIS_URL: redis://redis:6379/0
       MSSQL_HOST: 35.184.80.250
@@ -40,28 +38,102 @@ services:
       MSSQL_DRIVER: ODBC Driver 18 for SQL Server
       MSSQL_QUERY_TIMEOUT: "300"
       GCS_BUCKET: clearcard-sql-results
-      RESULT_CHUNK_MAX_MB: "100"   # 100MB chunks in prod
-      APP_PORT: 50052
+      RESULT_CHUNK_MAX_MB: "100"
+      APP_PORT: "50052"
     volumes:
       - ./secrets/gcp-key.json:/secrets/gcp/key.json:ro
-    depends_on:
-      - redis
+    networks: [appnet]
+    depends_on: [redis]
 
   spring:
     build:
       context: ./java-spring
-    container_name: cc-spring
+    container_name: spring
     environment:
       MSG_HANDLER_HOST: message-handler
       MSG_HANDLER_PORT: "50051"
-      # For Spring Cloud GCP (if you use it):
       GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp/key.json
       SPRING_CLOUD_GCP_CREDENTIALS_LOCATION: file:/secrets/gcp/key.json
-      # If your config uses gcs.bucket property:
       GCS_BUCKET: clearcard-sql-results
+      # IMPORTANT for reverse proxy setups:
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: X-Forwarded-For
+      SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER: X-Forwarded-Proto
+      SERVER_USE_FORWARD_HEADERS: "true"
+      # Optionally set server.servlet.context-path=/api if you prefer
     volumes:
       - ./secrets/gcp-key.json:/secrets/gcp/key.json:ro
-    ports:
-      - "8080:8080"
+    expose: ["8080"]      # internal only
+    networks: [appnet]
     depends_on:
-      - message-handler
+      message-handler:
+        condition: service_healthy
+
+  # Build-only stage to create /dist; not exposed
+  client:
+    build:
+      context: ./client
+      target: dist
+    container_name: client-dist
+    networks: [appnet]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nginx
+    depends_on:
+      - client
+      - spring
+    ports:
+      - "80:80"
+    networks: [appnet]
+    volumes:
+      # Copy built client bundle into nginx html (one-time at container start)
+      - type: bind
+        source: ./nginx/nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+      - type: bind
+        source: ./nginx/conf.d
+        target: /etc/nginx/conf.d
+        read_only: true
+      # Use a named volume for html; we’ll populate it via a one-shot init
+      - nginx_html:/usr/share/nginx/html
+
+    # Populate /usr/share/nginx/html from the client-dist image at startup
+    # This trick avoids multi-container copy limitations
+    command: >
+      /bin/sh -c "
+        if [ ! -f /usr/share/nginx/html/index.html ]; then
+          echo 'Populating web root from client-dist image...';
+          rm -rf /usr/share/nginx/html/*;
+          # Copy from the build image's /dist
+          cp -r /tmp/dist/* /usr/share/nginx/html/;
+        fi;
+        nginx -g 'daemon off;'
+      "
+    # Mount the client-dist /dist into /tmp/dist using an ephemeral container
+    # We do that with an additional 'volumes_from' like behavior using 'extra_hosts'? Not available.
+    # Instead, we use a sidecar to export files to a volume (see below)
+
+  # Sidecar to export /dist into a named volume once per compose up
+  web-exporter:
+    image: alpine
+    depends_on: [client]
+    command: ["/bin/sh","-c","cp -r /dist/* /html/"]
+    volumes:
+      - nginx_html:/html
+    # Mount the client build output by referencing the client image's layer:
+    # Compose cannot mount from another image directly; we copy by building a tiny stage here.
+    # We get /dist by reusing the same Dockerfile context via an ephemeral container:
+    build:
+      context: ./client
+      target: dist
+    networks: [appnet]
+    restart: "no"
+
+volumes:
+  nginx_html:
+
+networks:
+  appnet:
+    driver: bridge
